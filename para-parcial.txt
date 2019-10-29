@@ -1,0 +1,4 @@
+Entra hasta el tema 4 incluido
+Preguntas practicas (tener la teoria clara)
+Puede entrar codigo en go (interpretar lo que ocurre. Ejemplos similares a los de clase)
+En el libro hemos dado los temas 1, 2 y 8

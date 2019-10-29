@@ -1,0 +1,38 @@
+suspender:
+quedarse bloqueado hasta que otro thread me reanime. el thread que llama deja de ejecutar hasta nuevo aviso. READY
+
+
+resume:
+retomar un thread. Que esta suspendido, dejas de estar suspendido y otro thread despierta al thread, pr eso tiene un id.
+Si inicias un thread que no esta suspendido, da fallo
+
+suspenderTh:
+un thread llama y se le pasa una lista de los id suspendidos. SE le pasa por argumento un puntero por referencia int **list. Se le
+pasa a una funcion y hace que se le pinche a un array y éste puntero reservara memoria. retprma el numero de threads que estan en 
+la memoria.
+
+int*lista
+.
+.
+.
+n=suspendedthreads(&lista)
+for(i =0; i<n;i++){
+
+	printf("", lista[i]);
+}
+free(lista)   -----> liberas la lista.
+
+kill:
+matar el thread objetivo. Se le pasa un id. BUscar en la lista de threads, ponerlo como lubre y liberar. Matas a otro, es lo que se diferencia
+de exit.
+
+if(id == current.id)---> llamar exit
+
+sleep:
+problemas:
+
+	que no haya thread listo para ejecutar y el planificador tenga que poner a alguien para elegir. 
+	SOl: el planificador puede hacer un sleep.
+	El planificador tiene que estar pendiente de la fecha del despertador
+
+

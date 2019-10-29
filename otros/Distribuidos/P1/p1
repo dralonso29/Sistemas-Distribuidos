@@ -1,0 +1,67 @@
+threads de area de usuario como los que vimos en clase de los que eran N1. Tenemos nuestros threads pero por debajo solo tenemos un proceso (muchos hilos -> 1 proceso).
+Thread.h, thr.c, main.c que use thr.c que haga hilos y pruebe el programa de c.
+
+init-> en el main lo primero que se hace es llamar a initthread e inicilizar la biblioteca. Puede que no sea nada, pero por si lo queremos. TIDS -> identificador entero, univoco y unico. Ponemos 32 threads por ejemplo. El main.c tiene un flujo de ejecucion, una vez que llamas a init, esa funcion main, ese thread es el 0, es él. El 0 siempre es el que llama a init = main.
+Cada tr tiene su pila y un contador de programa distinto. Hacer malloc para una pila.
+
+create-> Cuando se crea un th se pasa el puntero a ese th cuando se tiene que ejecutar. Se pasa un void pointer porque es una estructura que quieras y solo tienes que pasarlo por referencia (que se ponga a ejecutar en la funcion f1). 
+void (*mainf)(void*) es un puntero a una funcion que le pasas como argmento un void pointer.
+
+
+void f1(void *p){                    ESta pinta un thread main.
+	int arg;
+	arg = int???????????
+}
+
+
+Arg es un void pointer porque puedes pasarle un puntero a donde tu quieras.
+El thr se crea pero el thr que se esta ejecutando, sigue ejecutando, no cambia de contexto, es decir, si se crea un thread, se sigue ejecutando el thread que está.
+
+exit-> finaliza el proceso pero no el programa. Cierra el proceso pero los threads que todavia siguen vivos tiene que acabar y esperar.
+Cuando se retorna de f1, se retorna automaticamente. 
+
+
+yield-> deja de ejecutar y deja el procesador a otro hilo.Hasta que no se haga 200ms, no se puede hacer yield. Tiene que tener una politica de runrobing, es decir, la de la ruleta. Si llamo antes al yield de que se acabe el cuanto, el hilo sigue. Si ya ha pasado de 200ms, puede pasar a otro hilo.
+
+curid-> retorna tu id (nº). gettid.
+
+
+
+
+
+
+
+
+
+
+
+SI las cosas no estan en miliseg, hacer una guncion para pasarlo.
+
+
+Tenemos que usar gettimeofdate
+
+UN tread necesita:
+	-un id que es un entero. int id
+	-una pila. char*stat -------------> MUY IMPORTANTE
+	-el cuanto (ms)
+	-create contex, swap... los context. Necesito un contexto. 
+		man makecontext()->crear un thread. Generar un contexto inicial
+
+		Dentro de creatrehad hay que hacer esto:
+
+		if (getcontext(&uctx_func1) == -1)
+                	handle_error("getcontext");
+		uctx_func1.uc_stack.ss_sp = func1_stack;
+		uctx_func1.uc_stack.ss_size = sizeof(func1_stack);
+		uctx_func1.uc_link = &uctx_main;
+		makecontext(&uctx_func1, func1, 0);
+		//void makecontext(ucontext_t *ucp, void *func(), int argc, ...);
+		argc son enteros, no se sabe por que, pero pasamos un puntero y va a funcionar.
+		Le pasamos 16k o 32k -> viene como argumento en create.
+		NOsotros en vez de usar la uc_stack, meteremos nuestra estructura de thread que queramos.
+
+
+	-estado para saber como esta la pila
+	-una estructura con algunos campos que definen a ese thread.
+	-una tabla de 32 estructuras de tipo array. Amedida que se vaya llamando a create, se cogen los huecos libres.
+

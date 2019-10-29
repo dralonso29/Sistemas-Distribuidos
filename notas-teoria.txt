@@ -1,0 +1,52 @@
+** Diferencia entre Cluster y Grid **
+- El Cluster es un sistema redundante entre servidores que garantiza que si un sistema se cae, la aplicacion que estaba corriendo sigue funcionando normalmente. Comunicados por LAN de alta velocidad.
+
+- El Grid fue diseñado para solucionar problemas que con un cluster no era posible realizar. Esta diseñado para resolver problemas independientes en paralelo, lo que incrementa la capacidad de procesamiento del ordenador de un modelo distribuido. Comunicacion por internet.
+++++++++++++++++++++++++++++++++++++++
+** Diferencias UMA y NUMA **
+1: Memoria compartida: En UMA hay uno o dos controladores. Los procesadores estan conectados a la memoria con un bus y acceden a la memoria de la misma forma. En NUMA hay multiples controladores.
+2: Uno, varios o buses cruzados en UMA. En NUMA jerarquicos 
+3: El tiempo de acceso en UMA de cada procesador es el mismo, pero en NUMA no ya que depende de la distacia a la memoria que se quiere acceder.
+4: NUMA es una arquitectura mas rapida que UMA.
+5: NUMA tiene mayor ancho de banda que UMA.
+++++++++++++++++++++++++++++++++++++++
+ ** Diferencias entre threads **
+Dos tipos: 
+	-de biblioteca o usuario: cada thread tiene su propio contador de programa y pila. Es poco costoso crearlos, destruirlos o conmutar entre threads. Si se boquea el proceso principal, se bloquean los threads.
+	-de Kernel: son procesos que comparten memoria (y mas cosas). Estos threads son mas costosos que los de usuario porque hay que entrar en el kernel.
+Tambien pueden ser:
+	-Expulsivos (preemtive)
+	-No expulsivos (non-preemtive)
+En Go tenemos:
+	-Las G (Goroutines), que son corutinas colaborativas (threads de usuario)
+	-Los M (worker threads), que son threads de kernel que van ejecutando Goroutines
+	-Los P (logic processor), son colas de planificacion de Gs sobre Ms (Goroutines sobre worker threads). La idea es que los P cogen Goroutines de una cola global y cuando se quedan sin Goroutines, lo los quitan a otros P para que todo vaya mas rapido y no haya Ps sin hacer nada (no se pierde la eficiencia)
+++++++++++++++++++++++++++++++++++++++
+** Los select de go **
+Se usa para multiplexar operaciones. Es como un switch, donde tiene cases, y una rama final default que puede estar o no. Cada case especifica una comunicacion y un bloque asociado de sentencias.
+
+En el caso de haber varios canales, entrara por el primer case que vea libre (en el caso de que alguno esté bloqueado). En el caso de haber varios libres, es posible que entre por uno de los case de manera aleatoria. Sino, ver el ejemplo siguiente:
+
+ch := make(chan int, 2)
+for i := 0; i < 10; i++ {
+	select {
+	case x := <-ch:
+		fmt.Println(x) // "0" "2" "4" "6" "8"
+	case ch <- i:
+	}	
+}
+
+Si el buffer fuese 1, la salida seria determinista. Pero como el buffer es mayor que 1 (en este caso, 2), cada ejecucion es aleatoria. Dependera de la probabilidad de entrar o no en un case u otro.
++++++++++++++++++++++++++++++++++++++++
+** Que es Apache Hadoop  **
+ framework de software que soporta aplicaciones distribuidas bajo una licencia libre(es como un S.O. que se encarga de lanzar aplicaciones en clusters o sistemas distribuidos, de la forma más transparente posible para el cliente). Permite a las aplicaciones trabajar con miles de nodos y petabytes de datos. Hadoop se inspiró en los documentos Google para MapReduce y Google File System (GFS).
+Antes se usaba Map Reduce 1, pero se quedo obsoleto y ahora se usa Map Reduce 2, mas conocido como YARN.
+
++++++++++++++++++++++++++++++++++++++++
+** Conceptos de sistemas distribuidos **
+- Acceso: esconder las diferencias entre la representacion de los datos y la forma de acceder a ellos.
+- Localizacion: asignar nombres logicos en cuanto a la localizacion de los recursos.
+- Migracion y relocalizacion: mientras el usuario usa un resurso, que sea posible cambiarle la maquina en la que esta ejecutando, con transparencia
+- Replicacion: se oculta que hay varias replicas del mismo recurso
+- Concurrencia: se oculta que se ejecutan varios procesos de manera concurrente, para acceder a diferentes recursos
+- Fallo: se enmascaran los fallos, de tal forma que el cliente no se entera y se buscan soluciones. Hay veces que no es posible ocultar el fallo.

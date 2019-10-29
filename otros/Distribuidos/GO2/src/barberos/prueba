@@ -1,0 +1,98 @@
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func cliente(i int, salaEspera chan chan int) {
+	c := make(chan int)
+	select {
+	case salaEspera <- c:
+		<-c
+		fmt.Println("Cliente", i, " :me empiezan a cortar el pelo")
+		<-c
+		fmt.Println("Cliente", i, " :terminan de cortarme el pelo")
+	default:
+		fmt.Println("Cliente", i, " :me voy de la barberia, esta llena")
+	}
+}
+
+func barbero(i int, salaEspera chan chan int) {
+	for {
+		select {
+		case k := <-salaEspera:
+			fmt.Println("Barbero ",i," : Comienzo a cortar el pelo")
+			k <- 2
+			time.Sleep(1 * time.Second)
+			k <- 2
+			fmt.Println("Barbero ",i," : Termino de cortar el pelo")
+		}
+	}
+}
+
+func main() {
+	salaEspera := make(chan chan int, 5)
+
+	go func() {
+		barbero(1,salaEspera)
+
+	}()
+
+	go func() {
+		barbero(2,salaEspera)
+	}()
+	
+	i:=1
+	for (i<30){
+		go func() {
+			cliente(i, salaEspera)
+		}()
+		time.Sleep(200*time.Millisecond)
+		i++
+	}
+
+	time.Sleep(4 * time.Second)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	i:=0
+	for {
+		select {
+		case k := <-recepcionista:
+			if(i <5){
+				salaEspera <- k
+				k<-0
+			}else{
+				k<-1
+			}
+		
+		}
+	}
