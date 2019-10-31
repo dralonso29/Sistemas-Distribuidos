@@ -65,11 +65,26 @@ func broadcaster() {
 //!-broadcaster
 
 //!+handleConn
+func introduceName(ch chan <- string, out chan <- string, conn net.Conn)  {
+	ch <- "Introduce un nombre de usuario: "
+	input := bufio.NewScanner(conn)
+	for input.Scan() {
+		out <- input.Text()
+		// aqui se podria enviar por un canal a broadcaster
+		// el nombre para ver si esta repetido
+		break
+	}
+}
+
+
 func handleConn(conn net.Conn) {
 	ch := make(chan string) // outgoing client messages
+	namech := make(chan string)
 	go clientWriter(conn, ch)
 
-	who := conn.RemoteAddr().String()
+	// who := conn.RemoteAddr().String()
+	go introduceName(ch, namech, conn)
+	who := <- namech
 	ch <- "You are " + who
 	messages <- who + " has arrived"
 	entering <- client{ch, who}
