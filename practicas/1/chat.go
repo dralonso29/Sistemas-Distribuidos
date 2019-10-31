@@ -20,18 +20,34 @@ type client struct {
 	id string
 }
 
+type climsg struct {
+	msg string
+	who string
+}
+
 var (
 	entering = make(chan client)
 	leaving  = make(chan client)
-	messages = make(chan string) // all incoming client messages
+	messages = make(chan climsg) // all incoming client messages
+	broadcast = make(chan string)
 )
 
 func announceClients(clients map[client]bool)  {
-	messages <- "List of clients:"
+	broadcast <- "List of clients:"
 	for cli := range clients {
 		go func(c client) {
-			messages <- c.id
+			broadcast <- c.id
 		}(cli)
+	}
+}
+
+func sendMsg(clients map[client]bool, cm climsg)  {
+	for cli := range clients {
+		if cli.id != cm.who{
+			go func(c client) {
+				c.channel <- cm.msg
+			}(cli)
+		}
 	}
 }
 
@@ -40,6 +56,9 @@ func broadcaster() {
 	for {
 		select {
 		case msg := <-messages:
+			go sendMsg(clients, msg)
+
+		case msg := <- broadcast:
 			// Broadcast incoming message to all
 			// clients' outgoing message channels.
 			for cli := range clients {
@@ -70,10 +89,11 @@ func introduceName(ch chan <- string, out chan <- string, conn net.Conn)  {
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		out <- input.Text()
-		// aqui se podria enviar por un canal a broadcaster
+		// aqui se podria enviar por un canal a broadcaster en vez de por out
 		// el nombre para ver si esta repetido
 		break
 	}
+	// NOTE: ignoring potential errors from input.Err()
 }
 
 
@@ -86,17 +106,18 @@ func handleConn(conn net.Conn) {
 	go introduceName(ch, namech, conn)
 	who := <- namech
 	ch <- "You are " + who
-	messages <- who + " has arrived"
+	broadcast <- who + " has arrived"
 	entering <- client{ch, who}
 
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
-		messages <- who + ": " + input.Text()
+		msg := who + ": " + input.Text()
+		messages <- climsg{msg, who}
 	}
 	// NOTE: ignoring potential errors from input.Err()
 
 	leaving <- client{ch, who}
-	messages <- who + " has left"
+	broadcast <- who + " has left"
 	conn.Close()
 }
 
