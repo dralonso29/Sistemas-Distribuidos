@@ -26,6 +26,15 @@ var (
 	messages = make(chan string) // all incoming client messages
 )
 
+func announceClients(clients map[client]bool)  {
+	messages <- "List of clients:"
+	for cli := range clients {
+		go func(c client) {
+			messages <- c.id
+		}(cli)
+	}
+}
+
 func broadcaster() {
 	clients := make(map[client]bool) // all connected clients
 	for {
@@ -39,15 +48,16 @@ func broadcaster() {
 
 		case cli := <-entering:
 			clients[cli] = true
-			for cli := range clients {
-				go func(c client) {
-					messages <- c.id
-				}(cli)
-			}
+			// si no ponemos a announceClients en una gorutina
+			// se queda bloqueado esperando a que se saque algo del canal
+			// El problema es que la funcion que saca cosas de los canales es broadcaster
+			go announceClients(clients)
 
 		case cli := <-leaving:
 			delete(clients, cli)
 			close(cli.channel)
+			// aqui pasa lo mismo que en el case anterior
+			go announceClients(clients)
 		}
 	}
 }
