@@ -28,8 +28,8 @@ type climsg struct {
 var (
 	entering = make(chan client)
 	leaving  = make(chan client)
-	messages = make(chan climsg) // all incoming client messages
-	broadcast = make(chan string)
+	messages = make(chan climsg) // multicast channel. send msgs to all clients except to sender
+	broadcast = make(chan string) // all incoming client messages
 )
 
 func announceClients(clients map[client]bool)  {
@@ -41,11 +41,11 @@ func announceClients(clients map[client]bool)  {
 	}
 }
 
-func sendMsg(clients map[client]bool, cm climsg)  {
+func sendMsg(clients map[client]bool, senderclient climsg)  {
 	for cli := range clients {
-		if cli.id != cm.who{
+		if cli.id != senderclient.who{
 			go func(c client) {
-				c.channel <- cm.msg
+				c.channel <- senderclient.msg
 			}(cli)
 		}
 	}
@@ -89,7 +89,7 @@ func introduceName(ch chan <- string, out chan <- string, conn net.Conn)  {
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		out <- input.Text()
-		// aqui se podria enviar por un canal a broadcaster en vez de por out
+		// aqui se podria enviar por un canal a broadcaster (en vez de por out)
 		// el nombre para ver si esta repetido
 		break
 	}
