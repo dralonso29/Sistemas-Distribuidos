@@ -25,11 +25,17 @@ type climsg struct {
 	who string
 }
 
+type checkclient struct {
+	name string
+	repeated bool
+}
+
 var (
 	entering = make(chan client)
 	leaving  = make(chan client)
 	messages = make(chan climsg) // multicast channel. send msgs to all clients except to sender
 	broadcast = make(chan string) // all incoming client messages
+	validclient = make(chan checkclient) // channel to know if a username exists or not
 )
 
 func announceClients(clients map[client]bool)  {
@@ -53,6 +59,7 @@ func sendMsg(clients map[client]bool, senderclient climsg)  {
 
 func broadcaster() {
 	clients := make(map[client]bool) // all connected clients
+	names := make(map[string]bool) // to know if a client name is repeated
 	for {
 		select {
 		case msg := <-messages:
@@ -65,7 +72,17 @@ func broadcaster() {
 				cli.channel <- msg
 			}
 
+		case cli := <- validclient:
+			_, exists := names[cli.name]
+			fmt.Println("Broadcaster: Usuario: ",cli.name," , existe: ", exists)
+			if exists {
+				fmt.Println("Broadcaster: dentro del if ")
+				cli.repeated = true
+			}
+			validclient <- cli
+
 		case cli := <-entering:
+			names[cli.id] = true
 			clients[cli] = true
 			// si no ponemos a announceClients en una gorutina
 			// se queda bloqueado esperando a que se saque algo del canal
@@ -73,6 +90,7 @@ func broadcaster() {
 			go announceClients(clients)
 
 		case cli := <-leaving:
+			delete(names, cli.id)
 			delete(clients, cli)
 			close(cli.channel)
 			// aqui pasa lo mismo que en el case anterior
@@ -88,10 +106,17 @@ func introduceName(ch chan <- string, out chan <- string, conn net.Conn)  {
 	ch <- "Introduce un nombre de usuario: "
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
-		out <- input.Text()
-		// aqui se podria enviar por un canal a broadcaster (en vez de por out)
-		// el nombre para ver si esta repetido
-		break
+		name := input.Text()
+		isrepeated := false // we asume that client is not repeated
+		validclient <- checkclient{name, isrepeated}
+		cli := <- validclient
+		if !cli.repeated {
+			out <- input.Text()
+			// aqui se podria enviar por un canal a broadcaster (en vez de por out)
+			// el nombre para ver si esta repetido
+			break
+		}
+		ch <- "Usuario "+name+" ya usado. Introduce otro: "
 	}
 	// NOTE: ignoring potential errors from input.Err()
 }
