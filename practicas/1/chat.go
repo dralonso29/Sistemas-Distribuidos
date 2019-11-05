@@ -59,7 +59,6 @@ func sendMsg(clients map[client]bool, senderclient climsg)  {
 
 func broadcaster() {
 	clients := make(map[client]bool) // all connected clients
-	names := make(map[string]bool) // to know if a client name is repeated
 	for {
 		select {
 		case msg := <-messages:
@@ -72,17 +71,16 @@ func broadcaster() {
 				cli.channel <- msg
 			}
 
-		case cli := <- validclient:
-			_, exists := names[cli.name]
-			fmt.Println("Broadcaster: Usuario: ",cli.name," , existe: ", exists)
-			if exists {
-				fmt.Println("Broadcaster: dentro del if ")
-				cli.repeated = true
+		case validcli := <- validclient:
+			for cli := range clients {
+				if cli.id == validcli.name {
+					validcli.repeated = true
+					break
+				}
 			}
-			validclient <- cli
+			validclient <- validcli
 
 		case cli := <-entering:
-			names[cli.id] = true
 			clients[cli] = true
 			// si no ponemos a announceClients en una gorutina
 			// se queda bloqueado esperando a que se saque algo del canal
@@ -90,7 +88,6 @@ func broadcaster() {
 			go announceClients(clients)
 
 		case cli := <-leaving:
-			delete(names, cli.id)
 			delete(clients, cli)
 			close(cli.channel)
 			// aqui pasa lo mismo que en el case anterior
@@ -103,7 +100,7 @@ func broadcaster() {
 
 //!+handleConn
 func introduceName(ch chan <- string, out chan <- string, conn net.Conn)  {
-	ch <- "Introduce un nombre de usuario: "
+	ch <- "Enter a username: "
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		name := input.Text()
@@ -116,11 +113,10 @@ func introduceName(ch chan <- string, out chan <- string, conn net.Conn)  {
 			// el nombre para ver si esta repetido
 			break
 		}
-		ch <- "Usuario "+name+" ya usado. Introduce otro: "
+		ch <- "User "+name+" already used. Try again: "
 	}
 	// NOTE: ignoring potential errors from input.Err()
 }
-
 
 func handleConn(conn net.Conn) {
 	ch := make(chan string) // outgoing client messages
@@ -151,7 +147,6 @@ func clientWriter(conn net.Conn, ch <-chan string) {
 		fmt.Fprintln(conn, msg) // NOTE: ignoring network errors
 	}
 }
-
 //!-handleConn
 
 //!+main
