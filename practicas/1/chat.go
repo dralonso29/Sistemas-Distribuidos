@@ -109,8 +109,6 @@ func introduceName(ch chan <- string, out chan <- string, conn net.Conn)  {
 		cli := <- validclient
 		if !cli.repeated {
 			out <- input.Text()
-			// aqui se podria enviar por un canal a broadcaster (en vez de por out)
-			// el nombre para ver si esta repetido
 			break
 		}
 		ch <- "User "+name+" already used. Try again: "
