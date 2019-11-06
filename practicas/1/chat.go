@@ -108,6 +108,10 @@ func introduceName(ch chan <- string, out chan <- string, conn net.Conn)  {
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		name := input.Text()
+		if len(name) <= 0 {
+			ch <- "User "+name+" too short. Try again: "
+			continue
+		}
 		isrepeated := false // we asume that client is not repeated
 		validclient <- checkclient{name, isrepeated}
 		cli := <- validclient
