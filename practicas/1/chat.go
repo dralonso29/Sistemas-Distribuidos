@@ -38,6 +38,8 @@ var (
 	validclient = make(chan checkclient) // channel to know if a username exists or not
 )
 
+const PRIVATE = "!private"
+
 func announceClients(clients map[client]bool)  {
 	broadcast <- "List of clients:"
 	for cli := range clients {
@@ -56,6 +58,8 @@ func sendMsg(clients map[client]bool, senderclient climsg)  {
 		}
 	}
 }
+
+
 
 func broadcaster() {
 	clients := make(map[client]bool) // all connected clients
@@ -130,8 +134,11 @@ func handleConn(conn net.Conn) {
 
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
-		msg := who + ": " + input.Text()
-		messages <- climsg{msg, who}
+		text := input.Text()
+		if len(text) > 0 { // to avoid send empty messages
+			msg := who + ": " + text
+			messages <- climsg{msg, who}
+		}
 	}
 	// NOTE: ignoring potential errors from input.Err()
 
