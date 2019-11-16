@@ -1,0 +1,23 @@
+Los lectores pueden acceder varios a la vez porque no se modifica o actualizar los datos.
+Sin embargo, si hay algun escritor, solo puede acceder uno respecto a otros lectores y escritores; es decir, una vez accede un escritor, solo puede acceder el solo.
+En las diapos, la solucion injusta se debe a que si los lectores son mas rapidos que los escritores, nunca dejarian a los escritores escribir.
+
+La solucion podria ser usar un torniquete, que al final es una cola de lectores y escritores. Como si pidieses turno en la charcuteria.
+Lo que garantiza es justicia en cuanto al orden.
+
+Productor/consumidor: produzco algo, se lo paso al siguiente y ya no lo toco
+
+espera activa == muerte y destruccion. la cpu dando vueltas 24/7
+
+solo se puede producir o consumir al mismo tiempo
+necesito un semaforo que lleve la cuenta del numero de huecos disponibles (holes)
+la produccion puede ser paralela, el problema es cuando ponerlo y donde.
+la consumicion el problema es cuando y donde coger el recurso.
+
+Controlamos entrada de productores (empieza en N) y consumidores (empieza en cero) (dos semaforos)
+sem_prod = N
+sem_cons = 0
+indice productores = i --> mutex_i = 1
+indice consumidores = j --> mutex_j = 1
+mutex_buff = 1
+
