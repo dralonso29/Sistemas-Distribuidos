@@ -1,0 +1,5 @@
+1- cuando se crean los coches, se crean todos a la vez y una vez creados se disputan el testigo para entrar en el puente? O se van creando y van entrando segun se crean y van entrando en funcion de quien ha llegado primero?
+
+2- el puente tiene que ser un struct? Deberia tener dos semaforos y un mutex porque al final es el recurso compartido? 
+
+3- el puente debe tener un array con los coches? o una variable que cuente el numero de coches? (Esos datos podrian ir dentro de la estructura puente)
