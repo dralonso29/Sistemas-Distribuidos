@@ -1,1 +1,0 @@
-El defer se usa para cuando quieres que se ejecute algo en ultima instacia en una funcion, bien sea por un return o por un fallo o excepcion. El es equivalente al with de Python
