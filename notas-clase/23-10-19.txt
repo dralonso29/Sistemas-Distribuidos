@@ -1,0 +1,8 @@
+test and set es pesimista. Primero test, luego set --> situaciones de contienda
+	-se pregunta primero si el recurso esta libre. Se sigue preguntando hasta que lo este, en ese caso se
+compare and swap, primero se hace el swap (optimista) --> situaciones colaborativas (como las gorutinas)
+	-aqui se asume que la mayor parte de las veces vamos a poder actualizar el valor o recurso
+	-menos esperas frente a test and set
+	-mas rapido frente a test and set
+	-el planificador de Go hace que la gestion de las gorutinas sea mejor con la estrategia de compare and swap
+En la imagen de Dani, lo que pone SBT es SET

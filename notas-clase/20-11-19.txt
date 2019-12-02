@@ -1,0 +1,15 @@
+CAP: Consistency, availability and partitioning(tolerancia a fallos)
+No es posible optimizar las tres a la vez
+https://en.wikipedia.org/wiki/CAP_theorem
+fallo bizantino: no saber cual es fallo. Sabes que el funcionamiento del sistema falla y sabes por qué(el sistema sigue funcionando pero con fallos que no sabes a que se debe)
+Los backups no probados no sabes si van a hacerte reestablecer lo que quieres
+El estandar en empresas TOP es 0.99999 de disponibilidad. Prob de fallo global de 0.00001 (muy caro)
+
+RAFT
+en el algoritmo de consenso se marcan los fallos y que maquinas han fallado
+
+Flp: en un sistema completamente asincrono no se puede alcanzar consenso con fallo bizantino. Ningun algoritmo garantiza que la solucion propuesta es la correcta. Es imposible distinguir fallos por tiempo que por fallo real.
+
+Cassandra, zookeeper
+
+En un sistema con fallos bizantinos no se puede asegurar la viveza

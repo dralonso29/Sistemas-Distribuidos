@@ -1,0 +1,12 @@
+El lock en Go es un cerrojo con cola
+Si un escritor coje el lock, nadie mas puede leer ni escribir. El lock se usa para que no haya conflicto entre ambos.
+Si estas leyendo y no haces lock, puede llegar un escritor y cambiar el contenido que estabas leyendo.
+Los lectores no se deberian bloquear entre si
+
+Semaforos
+- En cada momento sabes cuantos estan esperando (debugging)
+- La cola es FIFO o no si la semantica es fuerte. Si la semantica es debil no se garantiza una ficha para un hilo (hambruna)
+- No hay numero maximo de fichas pero si de recursos (recursos limitados). Por temas de memoria y que la cola no puede ser infinita
+
+Torniquete
+- Lo que se hace es ejecutar a lectores o escritores en el orden en el que llegan.

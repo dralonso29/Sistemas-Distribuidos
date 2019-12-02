@@ -1,0 +1,17 @@
+En el ejemplo de fetchall, lo de la go routine, lo que hace es concurrente pero no en paralelo, por eso el programa tarda lo mismo que el recurso mas lento en obtenerse.
+clousure: bloque de codigo que tiene entidad por si mismo. Tiene un alcance definido (first class citizens) 
+clousure -> objeto
+Cualquier cosa que se pueda ejecutar, se le puede pasar a la instruccion 'go'
+
+Buscar funciones anonimas y function literals.
+
+multithreading: el mismo proceso con varios hilos que comparten heap. Si el proceso se va a la mierda, los hilos se mueren tambien. (Kernel o de biblioteca) Go se situa en threads de kernel non-preemtive (non-preemtive == no expulsivos)(scheduler o planificador) Son bounded threads que pueden ser en paralelo.
+En los threads de biblioteca el S.O. solo ve un proceso.
+multiprocessing: Varios procesos. Si muere un proceso, el resto siguen vivos.
+
+Habra tantos kernel threads como cores virtuales tenga tu maquina(como maximo)
+
+Linux no distingue entre threads y procesos.
+
+En Python: yield --> async
+En Java --> Actors (Akka)
