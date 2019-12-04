@@ -1,0 +1,19 @@
+Relojes vectoriales: lo que nos importa es el orden en el que han ido ocurriendo los sucesos, mas que el cuando han ocurrido dichos sucesos.
+El grafo va hacia delante. El nuevo vector suma lo anterior (monotonocreciente y estrictamente creciente)
+Un vector respecto al otro, si es mayor que el otro, es posterior al otro.
+Orden parcial (sabemos en funcion de los primeros como reconstruir el orden de los hechos)
+Historias causales pero solo con los eventos importantes (como un commit, push en git)
+Matrices o vectores dispersas: tienen muchas componentes con muchos ceros. Representan dichas componentes de forma compacta con los valores no nulos
+
+
+En una transaccion no me puedo quedar a medias. Si se completa, guay. Sino hay que salvaguardar el estado anterior a la transaccion.
+Una transaccion no puede depender de otra transaccion. Las transacciones se completan cuando se garantiza que se ha guardado en una memoria no volatil. Si por ejemplo se va la luz en mitad de una transaccion, tenemos que revertir los cambios porque la transaccion no se ha completado.
+
+Two phase commit: Un coordinador y N trabajadores
+Commit Request a los trabajadores: el coordinador le pregunta a los N trabajadores si el estado es el mismo que el suyo. Estos responden si o no
+Si todos responden si -> se hace el commit. En caso contrario, con que uno diga que no, se hace rollback
+Podria ocurrir que alguno no responda (timeout). Si estamos ya en commit hay que esperar a que se recuperen.
+
+Teorema CAP: No se pueden garantizar las tres esquinas simultaneamente (Integridad/Consistencia, Disponibilidad, Tolerancia a particiones)
+Martin Kleppmann
+akamai
