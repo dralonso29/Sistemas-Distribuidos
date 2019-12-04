@@ -76,19 +76,40 @@ func carRunning(c *car, n *sync.WaitGroup)  {
 	arrive2bridge(c)
 	fmt.Println("Coche ",c.id," ha llegado al puente")
 
-	if c.side == "east"{
-		brg.eastch <- car{c.id, c.side}
-	}else{
-		brg.westch <- car{c.id, c.side}
+	for {
+		brg.Lock()
+		if len(brg.way) == 0 { // the car that joins here is the first of its side and can cross the bridge
+			fmt.Println("El puente esta vacio")
+			brg.way = setWay(c.side)
+			fmt.Println("El coche ",c.id,"ha establecido el sentido hacia ", brg.way)
+			lockSideBridge(brg.way)
+			if c.side == "east"{
+				brg.eastch <- car{c.id, c.side}
+			}else{
+				brg.westch <- car{c.id, c.side}
+			}
+			brg.Unlock()
+			break
+		}else if len(brg.way) > 0 && c.side != brg.way{ // the car that joins here can cross the bridge. It's not the first car of its side
+			brg.Unlock()
+			//fmt.Println("Coche ", c.id, " puede cruzar")
+			if c.side == "east"{
+				brg.eastch <- car{c.id, c.side}
+			}else{
+				brg.westch <- car{c.id, c.side}
+			}
+			break
+		}
+		brg.Unlock()
+		//fmt.Println("Coche ", c.id, " esperando a que se desbloquee el puente")
+		if c.side == "east"{ // if any car arrives here is because it's not car's turn to cross bridge. Must wait until unlocks its side
+			brg.eastch <- car{c.id, c.side}
+			<- brg.eastch
+		}else{
+			brg.westch <- car{c.id, c.side}
+			<- brg.westch
+		}
 	}
-	brg.Lock()
-	if len(brg.way) == 0 {
-		fmt.Println("El puente esta vacio")
-		brg.way = setWay(c.side)
-		fmt.Println("El coche ",c.id,"ha establecido el sentido hacia ", brg.way)
-		lockSideBridge(brg.way)
-	}
-	brg.Unlock()
 	fmt.Println("Coche ",c.id," cruzando el puente")
 	time.Sleep(CROSSTIME * time.Millisecond)
 	brg.Lock()
@@ -104,7 +125,7 @@ func carRunning(c *car, n *sync.WaitGroup)  {
 		brg.Unlock()
 	}else{
 		<- brg.westch
-		//fmt.Println("Coche ", c.id,": numero coches oeste: ", brg.westcars, " , long westch: ", len(brg.westch), "carsLeft = ", brg.carsLeft)
+		//fmt.Println("Coche ", c.id,": numero coches oeste: ", brg.westcars, " , long westch: ", len(brg.westch))
 		if len(brg.westch) == 0 {
 			//fmt.Println("Coche ",c.id, " es el ultimo del lado ",c.side, ", desbloquea al otro lado")
 			unlockSideBridge(brg.way)
@@ -112,7 +133,6 @@ func carRunning(c *car, n *sync.WaitGroup)  {
 		}
 		brg.Unlock()
 	}
-
 }
 
 func initializeBridge()  {
