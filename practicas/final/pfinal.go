@@ -7,13 +7,20 @@ import (
 	"sync"
 )
 
-const NMATCHES = 4		// total number of matches
+const NMATCHES = 1		// total number of matches
 const MTIME	= 20000		// time of a match in ms
+const CDTIME = 750		// countdown time in ms
+const ENDMATCH = 5		// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
+const TCHANCE = 2000	// time between chances in ms
+
+// type mdata struct {
+//
+// }
 
 //!+myUnlock
 func myUnlock(ch chan struct {})  {
 	for i := 0; i < NMATCHES; i++ {
-		fmt.Println("Unlock: ",i)
+		//fmt.Println("Unlock: ",i)
 		<- ch
 	}
 }
@@ -22,32 +29,68 @@ func myUnlock(ch chan struct {})  {
 //!+myLock
 func myLock(ch chan struct {})  {
 	for i := 0; i < NMATCHES; i++ {
-		fmt.Println("Lock: ",i)
+		//fmt.Println("Lock: ",i)
 		ch <- struct{}{}
 	}
 }
 //!-myLock
 
+//!+playmatch
+func playmatch()  {
+	team := ""
+	occ := ""
+	prob1 := 50
+	prob2 := 70
+	n1 := rand.Intn(100) + 1
+	if n1 <= prob1 {
+		team = "local"
+	}else{
+		team = "visitor"
+	}
+	n2 := rand.Intn(100) + 1
+	if n2 <= prob2 {
+		occ = "fail"
+	}else{
+		occ = "goal"
+	}
+	fmt.Println("Ocasion del ", team, " ha sido ", occ, "n1 = ", n1, ", n2 = ", n2)
+}
+//!-playmatch
+
 //!+match
 func match(start chan struct{}, id int, n *sync.WaitGroup)  {
-	n.Done()
-	fmt.Println("El partido ", id, " esperando")
+	defer n.Done()
 	start <- struct{}{}
-	fmt.Println("Partido ", id, ": ", time.Now().String())
+	for i := 1; i <= ENDMATCH; i++ {
+		playmatch()		// generate a goal
+		time.Sleep(TCHANCE * time.Millisecond)
+	}
+	// fmt.Println("Partido ", id, ": ", time.Now().String())
 }
 //!-match
+
+//!+startCountdown
+func startCountdown()  {
+	fmt.Println("The ", NMATCHES, " matches start in...")
+	for i := 3; i >= 1 ; i-- {
+		fmt.Printf("\r%d",i)
+		time.Sleep(CDTIME * time.Millisecond)
+	}
+	fmt.Printf("\rGO!\n")
+}
+//!-startCountdown
 
 //!+matchesGenerator
 func matchesGenerator()  {
 	var n sync.WaitGroup
-	n.Wait()
+	defer n.Wait()
 	start := make(chan struct{}, NMATCHES)
 	myLock(start)
 	for i := 0; i < NMATCHES; i++ {
 		n.Add(1)
 		go match(start, i, &n)
 	}
-	// hacer algun algoritmo para poder hacer que todos los partidos empiecen a la vez
+	startCountdown()
 	myUnlock(start)
 }
 //!-matchesGenerator
