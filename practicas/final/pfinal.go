@@ -10,7 +10,7 @@ import (
 const NMATCHES = 2				// total number of matches
 const MTIME	= 20000				// time of a match in ms
 const CDTIME = 750				// countdown time in ms
-const CHANCES = 5				// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
+const CHANCES = 1				// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
 const TCHANCE = 2000			// time between chances in ms
 
 type mcomm struct {
@@ -23,7 +23,7 @@ type mdata struct {				// all match's info about all other matches and itself
 	localscores int				// register of local goals
 	visitorscores int			// register of visitor goals
 	mch chan mcomm 				// match's channel
-	mustfollow [NMATCHES]bool	// if a match must be followed or not
+	followedby [NMATCHES]bool	// array of matches that follows me
 	scoreinvalid [NMATCHES]bool	// if a match has an invalid scoreboard
 }
 
@@ -60,20 +60,23 @@ func chooseTeam()  string{
 
 //!+isGoal
 func isGoal()  bool{
-	prob := 70
+	prob := 0
 	n := rand.Intn(100)
 	return n > prob
 }
 //!-isGoal
 
 //!+matchHandler
-func matchHandler(id int)  {
+func matchHandler(id int, data *mdata)  {
 	for {
 		select {
 		case mid := <- matches[id]:
 			// buscar en el array que se le ha pasado a matchHandler e invalidar el resultado
 			// Cada vez que se invalida un resultado del array habria que usar un mutex(?)
 			fmt.Println("E",id," Handler: msg de ",mid.matchid, " es ",mid.msg)
+			data.Lock()
+			data.scoreinvalid[mid.matchid] = true
+			data.Unlock()
 		}
 	}
 }
@@ -87,13 +90,15 @@ func fillMatchData(id int)  *mdata{
 	data.mch = matches[id]
 	data.scoreinvalid = [NMATCHES]bool{false, false}//, false, false}
 	if id == 0 {
-		data.mustfollow = [NMATCHES]bool{false, false}//, true, false}
+		data.followedby = [NMATCHES]bool{false, true} // test
+		// data.followedby = [NMATCHES]bool{false, true, false, false} //good one
 	}else if id == 1 {
-		data.mustfollow = [NMATCHES]bool{true, false}//, true, false}
+		data.followedby = [NMATCHES]bool{true, false} // test
+		// data.followedby = [NMATCHES]bool{true, false, true, false} // good one
 	}//else if id == 2 {
-	// 	data.mustfollow = [NMATCHES]bool{false, false, false, true}
+	// 	data.followedby = [NMATCHES]bool{true, true, false, false}
 	// }else{
-	// 	data.mustfollow = [NMATCHES]bool{false, true, false, false}
+	// 	data.followedby = [NMATCHES]bool{false, false, true, false}
 	// }
 	return data
 }
@@ -113,10 +118,9 @@ func sendMessage(id int, msg string)  {
 //!+match
 func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 	defer n.Done()
-	go matchHandler(id)
 	start <- struct{}{}
-	// data := fillMatchData(id)
-	fillMatchData(id)
+	data := fillMatchData(id)
+	go matchHandler(id, data)
 	//fmt.Println("Match", id, ": ", data)
 	for i := 1; i <= CHANCES; i++ {
 		team := chooseTeam()
@@ -124,14 +128,21 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 		fmt.Println("E",id, ": Ocasion del ", team, ", goal = ", isgoal)
 		if isgoal {
 			fmt.Println("E",id," invalida al resto de partidos")
+			data.Lock()
+			if team == "local" {
+				data.localscores++
+			}else{
+				data.visitorscores++
+			}
+			data.Unlock()
 			go sendMessage(id, "invalid") 	// bucle for que envia por un canal buffered llamado invalidate que reciba el id del partido que tiene
-			//								// un resultado invalido
-			//
-			//	Tenemos que tener un handler en cada match que reciba datos de distintos canales (lanzar al principio de cada match)
-			//
+											// un resultado invalido
 		}
 		time.Sleep(TCHANCE * time.Millisecond)
 	}
+	data.Lock()
+	fmt.Println("E",id,": data: ", data)
+	data.Unlock()
 	// fmt.Println("Partido ", id, ": ", time.Now().String())
 }
 //!-match
