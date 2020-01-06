@@ -12,10 +12,18 @@ const MTIME	= 20000				// time of a match in ms
 const CDTIME = 750				// countdown time in ms
 const CHANCES = 1				// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
 const TCHANCE = 2000			// time between chances in ms
+const PMISS = 70				// prob of goal's failure in %
 
-type mcomm struct {
-	matchid int
-	msg string
+type mcomm struct {				// protocol between stadiums and central
+	matchid int					// statium id (central = NMATCHES + 1)
+	msg string					// type of message (invalid, central, update)
+}
+
+type omatch struct {			// info from other matches
+	olocalscore int				// other local score
+	ovisitorscore int			// other visitor score
+	invalid bool				// if we have an invalid copy of match's score
+	isfollowed bool					// if this match is followed by me
 }
 
 type mdata struct {				// all match's info about all other matches and itself
@@ -23,8 +31,7 @@ type mdata struct {				// all match's info about all other matches and itself
 	localscore int				// register of local goals
 	visitorscore int			// register of visitor goals
 	mch chan mcomm 				// match's channel
-	followedby [NMATCHES]bool	// array of matches that follows me
-	scoreinvalid [NMATCHES]bool	// if a match has an invalid scoreboard
+	otherscores []omatch		// array of other matches' data. Position of array corresponds with matches' ids
 }
 
 var matches [NMATCHES]chan mcomm
@@ -60,27 +67,39 @@ func chooseTeam()  string{
 
 //!+isGoal
 func isGoal()  bool{
-	prob := 0
 	n := rand.Intn(100)
-	return n > prob
+	return n > PMISS
 }
 //!-isGoal
 
 //!+matchHandler
-func matchHandler(id int, data *mdata)  {
+func matchHandler(myid int, data *mdata)  {
 	for {
 		select {
-		case mid := <- matches[id]:
-			// buscar en el array que se le ha pasado a matchHandler e invalidar el resultado
-			// Cada vez que se invalida un resultado del array habria que usar un mutex(?)
-			fmt.Println("E",id," Handler: msg de ",mid.matchid, " es ",mid.msg)
+		case id := <- matches[myid]:
+			fmt.Println("E",myid," Handler: msg de ",id.matchid, " es ",id.msg)
 			data.Lock()
-			data.scoreinvalid[mid.matchid] = true
+			if id.msg == "invalid" {
+				if data.otherscores[id.matchid].isfollowed {
+					data.otherscores[id.matchid].invalid = true
+				}
+			}
+
 			data.Unlock()
 		}
 	}
 }
 //!-matchHandler
+
+//!+initOtherScores
+func initOtherScores(data *mdata)  {
+	data.otherscores = []omatch{}
+	for i := 0; i < NMATCHES; i++ {
+		n := omatch{olocalscore: 0, ovisitorscore: 0, invalid: false, isfollowed: false}
+		data.otherscores = append(data.otherscores, n)
+	}
+}
+//!-initOtherScores
 
 //!+fillMatchData
 func fillMatchData(id int)  *mdata{
@@ -88,18 +107,15 @@ func fillMatchData(id int)  *mdata{
 	data.localscore = 0
 	data.visitorscore = 0
 	data.mch = matches[id]
-	data.scoreinvalid = [NMATCHES]bool{false, false}//, false, false}
+	initOtherScores(data)
 	if id == 0 {
-		data.followedby = [NMATCHES]bool{false, true} // test
-		// data.followedby = [NMATCHES]bool{false, true, false, false} //good one
+		data.otherscores[1].isfollowed = true		//TEST
+		//data.otherscores[2].isfollowed = true 	// OK
 	}else if id == 1 {
-		data.followedby = [NMATCHES]bool{true, false} // test
-		// data.followedby = [NMATCHES]bool{true, false, true, false} // good one
-	}//else if id == 2 {
-	// 	data.followedby = [NMATCHES]bool{true, true, false, false}
-	// }else{
-	// 	data.followedby = [NMATCHES]bool{false, false, true, false}
-	// }
+		data.otherscores[0].isfollowed = true		// TEST
+		// data.otherscores[0].isfollowed = true 	// OK
+		// data.otherscores[2].isfollowed = true	//OK
+	}
 	return data
 }
 //!-fillMatchData
@@ -170,13 +186,7 @@ func matchesGenerator()  {
 		go match(start, i, &n)
 	}
 	startCountdown()
-	//fmt.Println("Channels: ",matches)
 	myUnlock(start, NMATCHES)
-	// fmt.Println(matches[0])
-	// fmt.Println(matches[1])
-	// fmt.Println(matches[2])
-	// fmt.Println(matches[3])
-
 }
 //!-matchesGenerator
 
