@@ -20,8 +20,8 @@ type mcomm struct {
 
 type mdata struct {				// all match's info about all other matches and itself
 	sync.Mutex
-	localscores int				// register of local goals
-	visitorscores int			// register of visitor goals
+	localscore int				// register of local goals
+	visitorscore int			// register of visitor goals
 	mch chan mcomm 				// match's channel
 	followedby [NMATCHES]bool	// array of matches that follows me
 	scoreinvalid [NMATCHES]bool	// if a match has an invalid scoreboard
@@ -85,8 +85,8 @@ func matchHandler(id int, data *mdata)  {
 //!+fillMatchData
 func fillMatchData(id int)  *mdata{
 	data := new(mdata)
-	data.localscores = 0
-	data.visitorscores = 0
+	data.localscore = 0
+	data.visitorscore = 0
 	data.mch = matches[id]
 	data.scoreinvalid = [NMATCHES]bool{false, false}//, false, false}
 	if id == 0 {
@@ -130,9 +130,9 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 			fmt.Println("E",id," invalida al resto de partidos")
 			data.Lock()
 			if team == "local" {
-				data.localscores++
+				data.localscore++
 			}else{
-				data.visitorscores++
+				data.visitorscore++
 			}
 			data.Unlock()
 			go sendMessage(id, "invalid") 	// bucle for que envia por un canal buffered llamado invalidate que reciba el id del partido que tiene
