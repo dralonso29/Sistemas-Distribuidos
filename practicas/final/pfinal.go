@@ -8,14 +8,16 @@ import (
 )
 
 const NMATCHES = 2				// total number of matches
+const NCENTRAL = 1				// total central systems
 const MTIME	= 20000				// time of a match in ms
+const STIME = 5000				// time between checking stadiums in ms
 const CDTIME = 750				// countdown time in ms
 const CHANCES = 1				// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
 const TCHANCE = 2000			// time between chances in ms
 const PMISS = 70				// prob of goal's failure in %
 
 type mcomm struct {				// protocol between stadiums and central
-	matchid int					// statium id (central = NMATCHES + 1)
+	matchid int					// statium id (centralid = NMATCHES)
 	msg string					// type of message (invalid, central, update)
 }
 
@@ -23,7 +25,7 @@ type omatch struct {			// info from other matches
 	olocalscore int				// other local score
 	ovisitorscore int			// other visitor score
 	invalid bool				// if we have an invalid copy of match's score
-	isfollowed bool					// if this match is followed by me
+	isfollowed bool				// if this match is followed by me
 }
 
 type mdata struct {				// all match's info about all other matches and itself
@@ -163,6 +165,34 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 }
 //!-match
 
+//!+chooseStadiumsOrder
+func chooseStadiumsOrder()  [NMATCHES]int{
+	p := [NMATCHES]int{0,1}	// TEST
+	a := [NMATCHES]int{}
+	// p := [NMATCHES]int{0,1,2,3} // OK
+	ind := rand.Intn(NMATCHES)
+	l := len(p)
+	for i := ind; i < l+ind; i++ {
+		//fmt.Println(p[i%l], ", i%l: ",i%l)
+		a[i-ind] = p[i%l]
+	}
+	return a
+}
+//!-chooseStadiumsOrder
+
+//!+centralSystem
+func centralSystem(start chan struct{}, id int, n *sync.WaitGroup)  {
+	defer n.Done()
+	start <- struct{}{}
+	fmt.Println("Lanzamos al sistema central")
+	a := [NMATCHES]int{}
+	for i := 0; i < CHANCES; i++ {
+		a = chooseStadiumsOrder()
+	}
+	fmt.Println(a)
+}
+//!-centralSystem
+
 //!+startCountdown
 func startCountdown()  {
 	fmt.Println(NMATCHES, " matches start in...")
@@ -178,15 +208,19 @@ func startCountdown()  {
 func matchesGenerator()  {
 	var n sync.WaitGroup
 	defer n.Wait()
-	start := make(chan struct{}, NMATCHES)
-	myLock(start, NMATCHES)
+	l := NMATCHES+NCENTRAL
+	start := make(chan struct{}, l)
+	myLock(start, l)
 	for i := 0; i < NMATCHES; i++ {
 		n.Add(1)
 		matches[i] = make(chan mcomm, 0)
 		go match(start, i, &n)
 	}
+	sysid := NMATCHES
+	n.Add(1)
+	go centralSystem(start, sysid, &n)
 	startCountdown()
-	myUnlock(start, NMATCHES)
+	myUnlock(start, l)
 }
 //!-matchesGenerator
 
