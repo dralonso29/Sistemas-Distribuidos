@@ -48,6 +48,7 @@ type controller struct {
 type mcomm struct {				// protocol between stadiums and central
 	matchid int					// statium id (centralid = NMATCHES)
 	msg string					// type of message (invalid, central, update)
+	round int					// cental system must know if is last round to close all channels
 }
 
 var channels [NTOT]chan mcomm
@@ -138,12 +139,12 @@ func fillMatchData(id int)  *mdata{
 //!-fillMatchData
 
 //!+sendMessage
-func sendMessage(id int, msg string)  {
-	for i := 0; i < NTOT; i++ {
+func sendMessage(id int, msg string, round int)  {
+	for i := 0; i < NMATCHES; i++ {
 		if id == i {
 			continue
 		}
-		channels[i] <- mcomm{id, msg}
+		channels[i] <- mcomm{id, msg, round}
 	}
 }
 //!-sendMessage
@@ -168,6 +169,7 @@ func callCentralSystem(id int, i int)  {
 
 	if (mustWarnCentralSystem(i)) && control.matches == NMATCHES {
 		fmt.Println("Dentro de mustWarnCentralSystem: Avisamos al SC")
+		channels[NMATCHES] <- mcomm{-1, "now", i}
 	}
 
 	if control.matches == NMATCHES {
@@ -220,7 +222,7 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 				data.visitorscore++
 			}
 			data.Unlock()
-			go sendMessage(id, "invalid")
+			go sendMessage(id, "invalid",i)
 		}
 		//fmt.Println("E",id, ", i: ",i," avisaria al sistema central")
 		control.Lock()
@@ -256,11 +258,24 @@ func centralSystem(start chan struct{}, id int, n *sync.WaitGroup)  {
 	defer n.Done()
 	start <- struct{}{}
 	fmt.Println("Lanzamos al sistema central")
-	a := [NMATCHES]int{}
-	for i := 0; i < CHANCES; i++ {
-		a = chooseStadiumsOrder()
+	for {
+		select {
+		case info := <- channels[id]:
+			//fmt.Println("E",myid," Handler: msg de ",id.matchid, " es ",id.msg)
+			fmt.Println("SISTEMA CENTRAL: ",info)
+			if info.round == TGAME {
+				for i := 0; i < NTOT; i++ {
+					close(channels[i])
+				}
+				return
+			}
+		}
 	}
-	fmt.Println(a)
+	// a := [NMATCHES]int{}
+	// for i := 0; i < CHANCES; i++ {
+	// 	a = chooseStadiumsOrder()
+	// }
+	// fmt.Println(a)
 }
 //!-centralSystem
 
