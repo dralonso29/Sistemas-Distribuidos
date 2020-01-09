@@ -9,12 +9,13 @@ import (
 
 const NMATCHES = 2				// total number of matches
 const NCENTRAL = 1				// total central systems
-const MTIME	= 20000				// time of a match in ms
-const STIME = 5000				// time between checking stadiums in ms
+const TGAME	= 20				// time of a match in s
+const STIME = 5					// time between checking stadiums in s
 const CDTIME = 750				// countdown time in ms
-const CHANCES = 1				// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
-const TCHANCE = 2000			// time between chances in ms
+const CHANCES = 10				// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
+const TCHANCE = 2				// time between chances in s
 const PMISS = 70				// prob of goal's failure in %
+const SECOND = 1				// just one second
 
 type mcomm struct {				// protocol between stadiums and central
 	matchid int					// statium id (centralid = NMATCHES)
@@ -36,7 +37,20 @@ type mdata struct {				// all match's info about all other matches and itself
 	otherscores []omatch		// array of other matches' data. Position of array corresponds with matches' ids
 }
 
+type csdata struct {			// info from central system
+	sync.Mutex
+	csch chan mcomm 			// central system's channel
+	scores []omatch				// array of other matches' data. Position of array corresponds with matches' ids
+}
+
+type controller struct {
+	sync.Mutex
+	chance int
+	matches int
+}
+
 var matches [NMATCHES]chan mcomm
+var control controller
 
 //!+myUnlock
 func myUnlock(ch chan struct {}, n int)  {
@@ -79,7 +93,7 @@ func matchHandler(myid int, data *mdata)  {
 	for {
 		select {
 		case id := <- matches[myid]:
-			fmt.Println("E",myid," Handler: msg de ",id.matchid, " es ",id.msg)
+			//fmt.Println("E",myid," Handler: msg de ",id.matchid, " es ",id.msg)
 			data.Lock()
 			if id.msg == "invalid" {
 				if data.otherscores[id.matchid].isfollowed {
@@ -133,6 +147,45 @@ func sendMessage(id int, msg string)  {
 }
 //!-sendMessage
 
+//!+isSecondCase
+func isSecondCase(i int)  bool{
+	return ((i % 5 == 0) && (i/5)%2 != 0) // returns true if is five multiple and (i/5)%2 is odd (i = 5,15,25,35,45...)
+}
+//!-isSecondCase
+
+//!+mustWarnCentralSystem
+func mustWarnCentralSystem(i int)  bool{
+	return control.chance%STIME == 0 || isSecondCase(i)
+}
+//!-mustWarnCentralSystem
+
+//!+callCentralSystem
+func callCentralSystem(id int, i int)  {
+	control.matches++
+	 fmt.Println("E",id," i:",i,//"mustWarnCentralSystem: ",mustWarnCentralSystem(),", control.matches: ", control.matches,
+					", control.chance: ", control.chance)
+
+	if (mustWarnCentralSystem(i)) && control.matches == NMATCHES {
+		fmt.Println("Dentro de mustWarnCentralSystem: Avisamos al SC")
+	}
+
+	if control.matches == NMATCHES {
+		if isSecondCase(i) {
+			control.matches = 0
+		}else{
+			control.chance++
+			control.matches = 0
+		}
+	}
+}
+//!-callCentralSystem
+
+//!+isOdd
+func isOdd(i int)  bool{
+	return i%2 != 0
+}
+//!-isOdd
+
 //!+match
 func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 	defer n.Done()
@@ -140,12 +193,25 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 	data := fillMatchData(id)
 	go matchHandler(id, data)
 	//fmt.Println("Match", id, ": ", data)
-	for i := 1; i <= CHANCES; i++ {
+	// chance := 1
+	for i := 1; i <= TGAME; i++ {
+		//fmt.Println("E",id, ", i: ",i)
+		if isOdd(i) {
+			if isSecondCase(i) {
+				//fmt.Println("E",id, ", i: ",i," avisaria al sistema central (dentro if)")
+				control.Lock()
+				callCentralSystem(id,i)
+				control.Unlock()
+			}
+			time.Sleep(1*time.Second)
+			continue
+		}
 		team := chooseTeam()
 		isgoal := isGoal()
-		fmt.Println("E",id, ": Ocasion del ", team, ", goal = ", isgoal)
+		//fmt.Println("E",id, ": Ocasion ",chance," del ", team, ", goal = ", isgoal)
+		// chance++
 		if isgoal {
-			fmt.Println("E",id," invalida al resto de partidos")
+			//fmt.Println("E",id," invalida al resto de partidos")
 			data.Lock()
 			if team == "local" {
 				data.localscore++
@@ -153,14 +219,18 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 				data.visitorscore++
 			}
 			data.Unlock()
-			go sendMessage(id, "invalid") 	// bucle for que envia por un canal buffered llamado invalidate que reciba el id del partido que tiene
-											// un resultado invalido
+			go sendMessage(id, "invalid")
 		}
-		time.Sleep(TCHANCE * time.Millisecond)
+		//fmt.Println("E",id, ", i: ",i," avisaria al sistema central")
+		control.Lock()
+		callCentralSystem(id, i)
+		control.Unlock()
+		// time.Sleep(TCHANCE * time.Second)
+		time.Sleep(SECOND*time.Second)
 	}
-	data.Lock()
-	fmt.Println("E",id,": data: ", data)
-	data.Unlock()
+	// data.Lock()
+	// fmt.Println("E",id,": data: ", data)
+	// data.Unlock()
 	// fmt.Println("Partido ", id, ": ", time.Now().String())
 }
 //!-match
@@ -204,10 +274,18 @@ func startCountdown()  {
 }
 //!-startCountdown
 
+//!+initController
+func initController()  {
+	control.chance = 1
+	control.matches = 0
+}
+//!-initController
+
 //!+matchesGenerator
 func matchesGenerator()  {
 	var n sync.WaitGroup
 	defer n.Wait()
+	initController()
 	l := NMATCHES+NCENTRAL
 	start := make(chan struct{}, l)
 	myLock(start, l)
@@ -219,7 +297,7 @@ func matchesGenerator()  {
 	sysid := NMATCHES
 	n.Add(1)
 	go centralSystem(start, sysid, &n)
-	startCountdown()
+	// startCountdown()
 	myUnlock(start, l)
 }
 //!-matchesGenerator
