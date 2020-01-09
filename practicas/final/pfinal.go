@@ -9,6 +9,7 @@ import (
 
 const NMATCHES = 2				// total number of matches
 const NCENTRAL = 1				// total central systems
+const NTOT = NMATCHES + NCENTRAL// suma de partidos y el sistema central
 const TGAME	= 20				// time of a match in s
 const STIME = 5					// time between checking stadiums in s
 const CDTIME = 750				// countdown time in ms
@@ -16,11 +17,6 @@ const CHANCES = 10				// playtime of a match is 20 secs (10 chances * 2 seconds 
 const TCHANCE = 2				// time between chances in s
 const PMISS = 70				// prob of goal's failure in %
 const SECOND = 1				// just one second
-
-type mcomm struct {				// protocol between stadiums and central
-	matchid int					// statium id (centralid = NMATCHES)
-	msg string					// type of message (invalid, central, update)
-}
 
 type omatch struct {			// info from other matches
 	olocalscore int				// other local score
@@ -49,7 +45,12 @@ type controller struct {
 	matches int
 }
 
-var matches [NMATCHES]chan mcomm
+type mcomm struct {				// protocol between stadiums and central
+	matchid int					// statium id (centralid = NMATCHES)
+	msg string					// type of message (invalid, central, update)
+}
+
+var channels [NTOT]chan mcomm
 var control controller
 
 //!+myUnlock
@@ -92,7 +93,7 @@ func isGoal()  bool{
 func matchHandler(myid int, data *mdata)  {
 	for {
 		select {
-		case id := <- matches[myid]:
+		case id := <- channels[myid]:
 			//fmt.Println("E",myid," Handler: msg de ",id.matchid, " es ",id.msg)
 			data.Lock()
 			if id.msg == "invalid" {
@@ -122,7 +123,7 @@ func fillMatchData(id int)  *mdata{
 	data := new(mdata)
 	data.localscore = 0
 	data.visitorscore = 0
-	data.mch = matches[id]
+	data.mch = channels[id]
 	initOtherScores(data)
 	if id == 0 {
 		data.otherscores[1].isfollowed = true		//TEST
@@ -138,18 +139,18 @@ func fillMatchData(id int)  *mdata{
 
 //!+sendMessage
 func sendMessage(id int, msg string)  {
-	for i := 0; i < NMATCHES; i++ {
+	for i := 0; i < NTOT; i++ {
 		if id == i {
 			continue
 		}
-		matches[i] <- mcomm{id, msg}
+		channels[i] <- mcomm{id, msg}
 	}
 }
 //!-sendMessage
 
 //!+isSecondCase
 func isSecondCase(i int)  bool{
-	return ((i % 5 == 0) && (i/5)%2 != 0) // returns true if is five multiple and (i/5)%2 is odd (i = 5,15,25,35,45...)
+	return ((i % STIME == 0) && (i/STIME)%2 != 0) // returns true if is five multiple and (i/5)%2 is odd (i = 5,15,25,35,45...)
 }
 //!-isSecondCase
 
@@ -286,19 +287,20 @@ func matchesGenerator()  {
 	var n sync.WaitGroup
 	defer n.Wait()
 	initController()
-	l := NMATCHES+NCENTRAL
-	start := make(chan struct{}, l)
-	myLock(start, l)
+	start := make(chan struct{}, NTOT)
+	myLock(start, NTOT)
 	for i := 0; i < NMATCHES; i++ {
 		n.Add(1)
-		matches[i] = make(chan mcomm, 0)
+		channels[i] = make(chan mcomm, 0)
 		go match(start, i, &n)
 	}
-	sysid := NMATCHES
+
 	n.Add(1)
-	go centralSystem(start, sysid, &n)
+	csid := NMATCHES
+	channels[csid] = make(chan mcomm, 0)
+	go centralSystem(start, csid, &n)
 	// startCountdown()
-	myUnlock(start, l)
+	myUnlock(start, NTOT)
 }
 //!-matchesGenerator
 
