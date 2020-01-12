@@ -179,6 +179,39 @@ func isOdd(i int)  bool{
 }
 //!-isOdd
 
+//!+showInfo
+func showInfo(matchinfo *mdata, csinfo *csdata, ismatchinfo bool, id int)  {
+	if ismatchinfo {
+		fmt.Println("======================================================")
+		fmt.Println("Stadium ",id,": ",matchinfo.localscore,"-",matchinfo.visitorscore)
+		fmt.Println("Stadiums followed:")
+		for i := 0; i < NMATCHES; i++ {
+			if matchinfo.otherscores[i].isfollowed {
+				fmt.Println("	Stadium ",i,": ",matchinfo.otherscores[i].olocalscore,"-",matchinfo.otherscores[i].ovisitorscore,
+							"--> ", matchinfo.otherscores[i].invalid)
+			}
+		}
+		fmt.Println("======================================================")
+	}else{
+		fmt.Println("======================================================")
+		fmt.Println("Central system info")
+		for i := 0; i < NMATCHES; i++ {
+			fmt.Println("Stadium ", i,": ", csinfo.matches[i].localscore,"-",csinfo.matches[i].visitorscore)
+			fmt.Println("Stadiums followed:")
+			for j := 0; j < NMATCHES; j++ {
+				if csinfo.matches[i].otherscores[j].isfollowed {
+					fmt.Println("	Stadium ",j,": ",csinfo.matches[i].otherscores[j].olocalscore,"-",csinfo.matches[i].otherscores[j].ovisitorscore,
+								"--> ", csinfo.matches[i].otherscores[j].invalid)
+				}
+
+			}
+			fmt.Println("------------------------------------------------------")
+		}
+		fmt.Println("======================================================")
+	}
+}
+//!-showInfo
+
 //!+matchHandler
 func matchHandler(myid int, data *mdata)  {
 	for {
@@ -246,7 +279,8 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 		time.Sleep(SECOND*time.Second)
 	}
 	data.Lock()
-	fmt.Println("E",id,": data: ", data)
+	//fmt.Println("E",id,": data: ", data)
+	showInfo(data, &csdata{}, true, id)
 	data.Unlock()
 	// fmt.Println("Partido ", id, ": ", time.Now().String())
 }
@@ -341,7 +375,8 @@ func centralSystem(start chan struct{}, id int, n *sync.WaitGroup) {
 					for i := 0; i < NMATCHES; i++ {
 						close(mchans[i])
 					}
-					fmt.Println("SC : data: ", csd)
+					// fmt.Println("SC : data: ", csd)
+					showInfo(&mdata{}, csd, false, id)
 					fmt.Println("SC : writeback = ", csd.writeback)
 					return
 				}
