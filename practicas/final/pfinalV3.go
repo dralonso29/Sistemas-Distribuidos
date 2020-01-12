@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-const NMATCHES = 2				// total number of matches
+const NMATCHES = 4				// total number of matches
 const NCENTRAL = 1				// total central systems
 const NTOT = NMATCHES + NCENTRAL// suma de partidos y el sistema central
 const TGAME	= 20				// time of a match in s
@@ -15,7 +15,7 @@ const STIME = 5					// time between checking stadiums in s
 const CDTIME = 750				// countdown time in ms
 const CHANCES = 10				// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
 const TCHANCE = 2				// time between chances in s
-const PMISS = 0				// prob of goal's failure in % ######### CAMBIAR ESTO
+const PMISS = 70				// prob of goal's failure in % ######### CAMBIAR ESTO
 const SECOND = 1				// just one second
 const CSCHANS = 2				// number of central systems's channels (invalid, getinfo)
 
@@ -113,12 +113,17 @@ func fillMatchData(id int)  *mdata{
 	data.mch = mchans[id]
 	initOtherScores(data)
 	if id == 0 {
-		data.otherscores[1].isfollowed = true		//TEST
-		//data.otherscores[2].isfollowed = true 	// OK
+		// data.otherscores[1].isfollowed = true		//TEST
+		data.otherscores[2].isfollowed = true 	// OK
 	}else if id == 1 {
-		data.otherscores[0].isfollowed = true		// TEST
-		// data.otherscores[0].isfollowed = true 	// OK
-		// data.otherscores[2].isfollowed = true	//OK
+		// data.otherscores[0].isfollowed = true		// TEST
+		data.otherscores[0].isfollowed = true 	// OK
+		data.otherscores[2].isfollowed = true	//OK
+	}else if id == 2 {
+		// data.otherscores[0].isfollowed = true		// TEST
+		data.otherscores[3].isfollowed = true	//OK
+	}else if id == 3 {
+		data.otherscores[1].isfollowed = true 	// OK
 	}
 	return data
 }
@@ -249,9 +254,9 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 
 //!+chooseStadiumsOrder
 func chooseStadiumsOrder()  [NMATCHES]int{
-	p := [NMATCHES]int{0,1}	// TEST
+	// p := [NMATCHES]int{0,1}	// TEST
 	a := [NMATCHES]int{}
-	// p := [NMATCHES]int{0,1,2,3} // OK
+	p := [NMATCHES]int{0,1,2,3} // OK
 	ind := rand.Intn(NMATCHES)
 	l := len(p)
 	for i := ind; i < l+ind; i++ {
@@ -382,7 +387,7 @@ func matchesGenerator()  {
 	cschans[0] = make(chan mcomm, 0)
 	cschans[1] = make(chan mcomm, 0)
 	go centralSystem(start, csid, &n)
-	// startCountdown()
+	startCountdown()
 	myUnlock(start, NTOT)
 }
 //!-matchesGenerator
