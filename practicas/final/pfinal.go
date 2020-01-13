@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-const NMATCHES = 2				// total number of matches
+const NMATCHES = 4				// total number of matches
 const NCENTRAL = 1				// total central systems
 const NTOT = NMATCHES + NCENTRAL// suma de partidos y el sistema central
 const TGAME	= 20				// time of a match in s
@@ -17,6 +17,7 @@ const CHANCES = 10				// playtime of a match is 20 secs (10 chances * 2 seconds 
 const TCHANCE = 2				// time between chances in s
 const PMISS = 70				// prob of goal's failure in %
 const SECOND = 1				// just one second
+const CSCHANS = 2				// number of central systems's channels (invalid, getinfo)
 
 type omatch struct {			// info from other matches
 	olocalscore int				// other local score
@@ -36,7 +37,9 @@ type mdata struct {				// all match's info about all other matches and itself
 type csdata struct {			// info from central system
 	sync.Mutex
 	csch chan mcomm 			// central system's channel
-	scores []omatch				// array of other matches' data. Position of array corresponds with matches' ids
+	matches [NMATCHES]mdata		// array of matches' data. Position of array corresponds with matches' ids
+	invalid [NMATCHES]bool		// to know if central's system copy of match's data is invalid or not
+	writeback int				// number of writeback operations in central system
 }
 
 type controller struct {
@@ -46,12 +49,14 @@ type controller struct {
 }
 
 type mcomm struct {				// protocol between stadiums and central
-	matchid int					// statium id (centralid = NMATCHES)
-	msg string					// type of message (invalid, central, update)
+	id int						// statium id (centralid = NMATCHES)
+	msg string					// type of message (invalid, now, central, update)
 	round int					// cental system must know if is last round to close all channels
+	matchdata *mdata			// header that contains a match info
 }
 
-var channels [NTOT]chan mcomm
+var mchans [NMATCHES]chan mcomm
+var cschans [CSCHANS]chan mcomm
 var control controller
 
 //!+myUnlock
@@ -90,25 +95,6 @@ func isGoal()  bool{
 }
 //!-isGoal
 
-//!+matchHandler
-func matchHandler(myid int, data *mdata)  {
-	for {
-		select {
-		case id := <- channels[myid]:
-			//fmt.Println("E",myid," Handler: msg de ",id.matchid, " es ",id.msg)
-			data.Lock()
-			if id.msg == "invalid" {
-				if data.otherscores[id.matchid].isfollowed {
-					data.otherscores[id.matchid].invalid = true
-				}
-			}
-
-			data.Unlock()
-		}
-	}
-}
-//!-matchHandler
-
 //!+initOtherScores
 func initOtherScores(data *mdata)  {
 	data.otherscores = []omatch{}
@@ -124,15 +110,20 @@ func fillMatchData(id int)  *mdata{
 	data := new(mdata)
 	data.localscore = 0
 	data.visitorscore = 0
-	data.mch = channels[id]
+	data.mch = mchans[id]
 	initOtherScores(data)
 	if id == 0 {
-		data.otherscores[1].isfollowed = true		//TEST
-		//data.otherscores[2].isfollowed = true 	// OK
+		// data.otherscores[1].isfollowed = true		//TEST
+		data.otherscores[2].isfollowed = true 	// OK
 	}else if id == 1 {
-		data.otherscores[0].isfollowed = true		// TEST
-		// data.otherscores[0].isfollowed = true 	// OK
-		// data.otherscores[2].isfollowed = true	//OK
+		// data.otherscores[0].isfollowed = true		// TEST
+		data.otherscores[0].isfollowed = true 	// OK
+		data.otherscores[2].isfollowed = true	//OK
+	}else if id == 2 {
+		// data.otherscores[0].isfollowed = true		// TEST
+		data.otherscores[3].isfollowed = true	//OK
+	}else if id == 3 {
+		data.otherscores[1].isfollowed = true 	// OK
 	}
 	return data
 }
@@ -144,8 +135,9 @@ func sendMessage(id int, msg string, round int)  {
 		if id == i {
 			continue
 		}
-		channels[i] <- mcomm{id, msg, round}
+		mchans[i] <- mcomm{id, msg, round, &mdata{}}
 	}
+	cschans[0] <- mcomm{id, msg, round, &mdata{}}
 }
 //!-sendMessage
 
@@ -164,21 +156,19 @@ func mustWarnCentralSystem(i int)  bool{
 //!+callCentralSystem
 func callCentralSystem(id int, i int)  {
 	control.matches++
-	 fmt.Println("E",id," i:",i,//"mustWarnCentralSystem: ",mustWarnCentralSystem(),", control.matches: ", control.matches,
+	fmt.Println("E",id," i:",i,//"mustWarnCentralSystem: ",mustWarnCentralSystem(),", control.matches: ", control.matches,
 					", control.chance: ", control.chance)
 
 	if (mustWarnCentralSystem(i)) && control.matches == NMATCHES {
-		fmt.Println("Dentro de mustWarnCentralSystem: Avisamos al SC")
-		channels[NMATCHES] <- mcomm{-1, "now", i}
+		// fmt.Println("Dentro de mustWarnCentralSystem: Avisamos al SC")
+		cschans[0] <- mcomm{-1, "now", i, &mdata{}}
 	}
 
 	if control.matches == NMATCHES {
-		if isSecondCase(i) {
-			control.matches = 0
-		}else{
+		if !isSecondCase(i) {
 			control.chance++
-			control.matches = 0
 		}
+		control.matches = 0
 	}
 }
 //!-callCentralSystem
@@ -189,6 +179,62 @@ func isOdd(i int)  bool{
 }
 //!-isOdd
 
+//!+showInfo
+func showInfo(matchinfo *mdata, csinfo *csdata, ismatchinfo bool, id int)  {
+	if ismatchinfo {
+		fmt.Println("======================================================")
+		fmt.Println("Stadium ",id,": ",matchinfo.localscore,"-",matchinfo.visitorscore)
+		fmt.Println("Stadiums followed:")
+		for i := 0; i < NMATCHES; i++ {
+			if matchinfo.otherscores[i].isfollowed {
+				fmt.Println("	Stadium ",i,": ",matchinfo.otherscores[i].olocalscore,"-",matchinfo.otherscores[i].ovisitorscore,
+							"--> ", matchinfo.otherscores[i].invalid)
+			}
+		}
+		fmt.Println("======================================================")
+	}else{
+		fmt.Println("======================================================")
+		fmt.Println("Central system info")
+		for i := 0; i < NMATCHES; i++ {
+			fmt.Println("Stadium ", i,": ", csinfo.matches[i].localscore,"-",csinfo.matches[i].visitorscore)
+			fmt.Println("Stadiums followed:")
+			for j := 0; j < NMATCHES; j++ {
+				if csinfo.matches[i].otherscores[j].isfollowed {
+					fmt.Println("	Stadium ",j,": ",csinfo.matches[i].otherscores[j].olocalscore,"-",csinfo.matches[i].otherscores[j].ovisitorscore,
+								"--> ", csinfo.matches[i].otherscores[j].invalid)
+				}
+
+			}
+			fmt.Println("------------------------------------------------------")
+		}
+		fmt.Println("======================================================")
+	}
+}
+//!-showInfo
+
+//!+matchHandler
+func matchHandler(myid int, data *mdata)  {
+	for {
+		select {
+		case info := <- mchans[myid]:
+			//fmt.Println("E",myid," Handler: msg de ",id.matchid, " es ",id.msg)
+			data.Lock()
+			if info.msg == "invalid" {
+				if data.otherscores[info.id].isfollowed {
+					data.otherscores[info.id].invalid = true
+				}
+			}else if info.msg == "getinfo" {
+				cschans[1] <- mcomm{myid, "sendinfo", -1, data}
+			}else if info.msg == "updatecs" {
+				cschans[1] <- mcomm{myid, "sendinfo", -1, &mdata{localscore:data.localscore,
+					 											visitorscore: data.visitorscore}}
+			}
+			data.Unlock()
+		}
+	}
+}
+//!-matchHandler
+
 //!+match
 func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 	defer n.Done()
@@ -196,7 +242,7 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 	data := fillMatchData(id)
 	go matchHandler(id, data)
 	//fmt.Println("Match", id, ": ", data)
-	// chance := 1
+	chance := 1
 	for i := 1; i <= TGAME; i++ {
 		//fmt.Println("E",id, ", i: ",i)
 		if isOdd(i) {
@@ -206,13 +252,13 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 				callCentralSystem(id,i)
 				control.Unlock()
 			}
-			time.Sleep(1*time.Second)
+			time.Sleep(SECOND *time.Second)
 			continue
 		}
 		team := chooseTeam()
 		isgoal := isGoal()
-		//fmt.Println("E",id, ": Ocasion ",chance," del ", team, ", goal = ", isgoal)
-		// chance++
+		fmt.Println("E",id, ": Ocasion ",chance," del ", team, ", goal = ", isgoal)
+		chance++
 		if isgoal {
 			//fmt.Println("E",id," invalida al resto de partidos")
 			data.Lock()
@@ -221,8 +267,9 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 			}else{
 				data.visitorscore++
 			}
+			fmt.Println("E",id, ": resultado ", data.localscore,"-",data.visitorscore)
 			data.Unlock()
-			go sendMessage(id, "invalid",i)
+			sendMessage(id, "invalid",i) //le quito el go delante de esto
 		}
 		//fmt.Println("E",id, ", i: ",i," avisaria al sistema central")
 		control.Lock()
@@ -231,18 +278,19 @@ func match(start chan struct{}, id int, n *sync.WaitGroup)  {
 		// time.Sleep(TCHANCE * time.Second)
 		time.Sleep(SECOND*time.Second)
 	}
-	// data.Lock()
-	// fmt.Println("E",id,": data: ", data)
-	// data.Unlock()
+	data.Lock()
+	//fmt.Println("E",id,": data: ", data)
+	showInfo(data, &csdata{}, true, id)
+	data.Unlock()
 	// fmt.Println("Partido ", id, ": ", time.Now().String())
 }
 //!-match
 
 //!+chooseStadiumsOrder
 func chooseStadiumsOrder()  [NMATCHES]int{
-	p := [NMATCHES]int{0,1}	// TEST
+	// p := [NMATCHES]int{0,1}	// TEST
 	a := [NMATCHES]int{}
-	// p := [NMATCHES]int{0,1,2,3} // OK
+	p := [NMATCHES]int{0,1,2,3} // OK
 	ind := rand.Intn(NMATCHES)
 	l := len(p)
 	for i := ind; i < l+ind; i++ {
@@ -253,29 +301,86 @@ func chooseStadiumsOrder()  [NMATCHES]int{
 }
 //!-chooseStadiumsOrder
 
+//!+fillCentralSystemData
+func fillCentralSystemData(id int)  *csdata {
+	csd := new(csdata)
+	for i := 0; i < NMATCHES; i++ {
+		// csd.csch = mchans[id]
+		csd.matches[i].localscore = 0
+		csd.matches[i].visitorscore = 0
+		csd.invalid[i] = false
+	}
+	csd.writeback = 0
+	return csd
+}
+//!-fillCentralSystemData
+
+//!+checkInfoOtherScores
+func checkInfoOtherScores(csd *csdata, data mcomm, matchid int)  {
+	for i := 0; i < NMATCHES; i++ {
+		if data.matchdata.otherscores[i].isfollowed && data.matchdata.otherscores[i].invalid {
+			fmt.Println("Habria que pedir la info actualizada")
+			mchans[i] <- mcomm{-1, "updatecs", -1, &mdata{}}
+			resp := <- cschans[1]
+			csd.matches[i].localscore = resp.matchdata.localscore
+			csd.matches[i].visitorscore = resp.matchdata.visitorscore
+			csd.writeback++
+			data.matchdata.otherscores[i].olocalscore = resp.matchdata.localscore
+			data.matchdata.otherscores[i].ovisitorscore = resp.matchdata.visitorscore
+			data.matchdata.otherscores[i].invalid = false
+		}
+	}
+}
+//!-checkInfoOtherScores
+
 //!+centralSystem
-func centralSystem(start chan struct{}, id int, n *sync.WaitGroup)  {
+func centralSystem(start chan struct{}, id int, n *sync.WaitGroup) {
 	defer n.Done()
 	start <- struct{}{}
 	fmt.Println("Lanzamos al sistema central")
+	csd := fillCentralSystemData(id)
 	for {
 		select {
-		case info := <- channels[id]:
+		case info := <- cschans[0]:
 			//fmt.Println("E",myid," Handler: msg de ",id.matchid, " es ",id.msg)
-			fmt.Println("SISTEMA CENTRAL: ",info)
-			if info.round == TGAME {
-				for i := 0; i < NTOT; i++ {
-					close(channels[i])
+			if info.msg == "invalid" {
+				csd.Lock()
+				csd.invalid[info.id] = true
+				//fmt.Println("SISTEMA CENTRAL: invalidado E" ,info.id,": ",csd.invalid[info.id])
+				csd.Unlock()
+			}else{
+				fmt.Println("SC: ",info)
+				storder := chooseStadiumsOrder()
+				fmt.Println("El orden elegido de consulta es ", storder)
+				for i := 0; i < len(storder); i++ {
+					matchid := storder[i]
+					mchans[matchid] <- mcomm{id, "getinfo", -1, &mdata{}}
+					x := <-cschans[1]
+					fmt.Println("SC: E",storder[i],": localscore = ",x.matchdata.localscore,", visitorscore = ",x.matchdata.visitorscore)
+					csd.Lock()
+					//fmt.Println("SC: E",storder[i],": localscore = ",x.matchdata.localscore,", visitorscore = ",x.matchdata.visitorscore)
+					x.matchdata.Lock()
+					csd.matches[matchid].localscore = x.matchdata.localscore
+					csd.matches[matchid].visitorscore = x.matchdata.visitorscore
+					checkInfoOtherScores(csd, x, matchid)
+					csd.matches[matchid].otherscores = x.matchdata.otherscores
+					x.matchdata.Unlock()
+					csd.invalid[matchid] = false
+					csd.Unlock()
 				}
-				return
+
+				if info.round == TGAME {
+					for i := 0; i < NMATCHES; i++ {
+						close(mchans[i])
+					}
+					// fmt.Println("SC : data: ", csd)
+					showInfo(&mdata{}, csd, false, id)
+					fmt.Println("SC : writeback = ", csd.writeback)
+					return
+				}
 			}
 		}
 	}
-	// a := [NMATCHES]int{}
-	// for i := 0; i < CHANCES; i++ {
-	// 	a = chooseStadiumsOrder()
-	// }
-	// fmt.Println(a)
 }
 //!-centralSystem
 
@@ -306,15 +411,16 @@ func matchesGenerator()  {
 	myLock(start, NTOT)
 	for i := 0; i < NMATCHES; i++ {
 		n.Add(1)
-		channels[i] = make(chan mcomm, 0)
+		mchans[i] = make(chan mcomm, 0)
 		go match(start, i, &n)
 	}
 
 	n.Add(1)
 	csid := NMATCHES
-	channels[csid] = make(chan mcomm, 0)
+	cschans[0] = make(chan mcomm, 0)
+	cschans[1] = make(chan mcomm, 0)
 	go centralSystem(start, csid, &n)
-	// startCountdown()
+	startCountdown()
 	myUnlock(start, NTOT)
 }
 //!-matchesGenerator
