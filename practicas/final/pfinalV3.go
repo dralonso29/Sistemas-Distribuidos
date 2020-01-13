@@ -15,7 +15,7 @@ const STIME = 5					// time between checking stadiums in s
 const CDTIME = 750				// countdown time in ms
 const CHANCES = 10				// playtime of a match is 20 secs (10 chances * 2 seconds between chances = 20 seconds)
 const TCHANCE = 2				// time between chances in s
-const PMISS = 70				// prob of goal's failure in % ######### CAMBIAR ESTO
+const PMISS = 70				// prob of goal's failure in %
 const SECOND = 1				// just one second
 const CSCHANS = 2				// number of central systems's channels (invalid, getinfo)
 
@@ -359,15 +359,13 @@ func centralSystem(start chan struct{}, id int, n *sync.WaitGroup) {
 					fmt.Println("SC: E",storder[i],": localscore = ",x.matchdata.localscore,", visitorscore = ",x.matchdata.visitorscore)
 					csd.Lock()
 					//fmt.Println("SC: E",storder[i],": localscore = ",x.matchdata.localscore,", visitorscore = ",x.matchdata.visitorscore)
-					if csd.invalid[matchid] {
-						x.matchdata.Lock()
-						csd.matches[matchid].localscore = x.matchdata.localscore
-						csd.matches[matchid].visitorscore = x.matchdata.visitorscore
-						checkInfoOtherScores(csd, x, matchid)
-						csd.matches[matchid].otherscores = x.matchdata.otherscores
-						x.matchdata.Unlock()
-						csd.invalid[matchid] = false
-					}
+					x.matchdata.Lock()
+					csd.matches[matchid].localscore = x.matchdata.localscore
+					csd.matches[matchid].visitorscore = x.matchdata.visitorscore
+					checkInfoOtherScores(csd, x, matchid)
+					csd.matches[matchid].otherscores = x.matchdata.otherscores
+					x.matchdata.Unlock()
+					csd.invalid[matchid] = false
 					csd.Unlock()
 				}
 
